@@ -415,9 +415,11 @@ document.addEventListener('DOMContentLoaded', () => {
             reader.onload = (e) => {
                 const img = new Image();
                 img.onload = () => {
-                    originalImageDimensions = { width: img.width, height: img.height };
-                    originalDimensions.textContent = `${img.width} × ${img.height} 像素`;
-                    targetDimensions.textContent = `保持 ${img.width} × ${img.height} 像素`;
+                    // 使用 naturalWidth 和 naturalHeight 获取原始尺寸
+                    originalImageDimensions = { width: img.naturalWidth, height: img.naturalHeight };
+                    originalDimensions.textContent = `${img.naturalWidth} × ${img.naturalHeight} 像素`;
+                    targetDimensions.textContent = `保持 ${img.naturalWidth} × ${img.naturalHeight} 像素`;
+                    console.log('原始图片尺寸已保存:', originalImageDimensions);
                 };
                 img.src = e.target.result;
             };
@@ -426,9 +428,11 @@ document.addEventListener('DOMContentLoaded', () => {
             // 获取第一张URL图片的尺寸
             const img = new Image();
             img.onload = () => {
-                originalImageDimensions = { width: img.width, height: img.height };
-                originalDimensions.textContent = `${img.width} × ${img.height} 像素`;
-                targetDimensions.textContent = `保持 ${img.width} × ${img.height} 像素`;
+                // 使用 naturalWidth 和 naturalHeight 获取原始尺寸
+                originalImageDimensions = { width: img.naturalWidth, height: img.naturalHeight };
+                originalDimensions.textContent = `${img.naturalWidth} × ${img.naturalHeight} 像素`;
+                targetDimensions.textContent = `保持 ${img.naturalWidth} × ${img.naturalHeight} 像素`;
+                console.log('原始图片尺寸已保存:', originalImageDimensions);
             };
             img.onerror = () => {
                 originalDimensions.textContent = '无法获取尺寸';
@@ -659,6 +663,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function downloadImage() {
         console.log('下载按钮被点击');
         console.log('当前图片URL:', currentResultImageUrl);
+        console.log('原始图片尺寸信息:', originalImageDimensions);
         
         if (!currentResultImageUrl) {
             console.error('没有可下载的图片');
@@ -675,13 +680,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // 检查是否需要调整到原始尺寸
         if (originalImageDimensions && originalImageDimensions.width && originalImageDimensions.height) {
-            console.log('检测到原始尺寸，开始调整图片尺寸');
-            downloadBtn.querySelector('.download-text').textContent = '调整尺寸中...';
+            console.log(`检测到原始尺寸 ${originalImageDimensions.width}x${originalImageDimensions.height}，开始调整图片尺寸`);
+            downloadBtn.querySelector('.download-text').textContent = `调整尺寸中... (${originalImageDimensions.width}×${originalImageDimensions.height})`;
             
-            // 自动调整到原始图片的尺寸
+            // 强制调整到原始图片的尺寸
             fastResizeImage(currentResultImageUrl, originalImageDimensions.width, originalImageDimensions.height)
                 .then(resizedUrl => {
-                    console.log('图片尺寸调整成功，开始下载调整后的图片');
+                    console.log(`图片尺寸调整成功 (${originalImageDimensions.width}x${originalImageDimensions.height})，开始下载调整后的图片`);
                     downloadBtn.querySelector('.download-text').textContent = '下载中...';
                     // 下载调整后的图片
                     downloadResizedImage(resizedUrl, originalImageDimensions.width, originalImageDimensions.height);
@@ -692,6 +697,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     console.log('尺寸调整失败，下载原始图片');
                     downloadBtn.querySelector('.download-text').textContent = '下载中...';
                     downloadResizedImage(currentResultImageUrl);
+                })
+                .finally(() => {
+                    // 恢复下载按钮状态
+                    downloadBtn.classList.remove('downloading');
+                    downloadBtn.disabled = false;
+                    downloadBtn.querySelector('.download-text').textContent = '下载图片 (自动调整到原始尺寸)';
                 });
         } else {
             console.log('没有原始尺寸信息，直接下载原始图片');
@@ -908,7 +919,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     
                     // 转换为高质量PNG格式
                     const resizedUrl = canvas.toDataURL('image/png', 1.0);
-                    console.log('图片尺寸调整完成');
+                    console.log(`图片尺寸调整完成: ${targetWidth}x${targetHeight}`);
                     resolve(resizedUrl);
                 } catch (error) {
                     console.error('Canvas处理失败:', error);
@@ -931,26 +942,44 @@ document.addEventListener('DOMContentLoaded', () => {
 
         currentResultImageUrl = imageUrl; // 保存当前图片URL
         
-        // 检查是否需要调整图片尺寸
+        // 检查是否需要调整图片尺寸（包括强制调整）
         if (data.needsResize && data.targetDimensions) {
             const targetWidth = data.targetDimensions.width;
             const targetHeight = data.targetDimensions.height;
             
             console.log('检测到需要调整尺寸:', targetWidth, 'x', targetHeight);
+            console.log('后端调整标志:', data.backendResized || false);
             
-            // 使用优化的快速缩放函数
-            fastResizeImage(imageUrl, targetWidth, targetHeight)
-                .then(resizedUrl => {
-                    currentResultImageUrl = resizedUrl; // 更新为调整后的URL
-                    displayImage(resizedUrl, startTime, targetWidth, targetHeight);
-                    downloadBtn.classList.remove('hidden'); // 显示下载按钮
-                })
-                .catch((error) => {
-                    console.error('图片尺寸调整失败:', error);
-                    // 如果缩放失败，显示原始图片
-                    displayImage(imageUrl, startTime);
-                    downloadBtn.classList.remove('hidden'); // 显示下载按钮
-                });
+            // 检查后端是否已经处理了图片调整
+            if (data.backendResized) {
+                console.log('后端已处理图片调整，直接显示调整后的图片');
+                currentResultImageUrl = imageUrl; // 使用后端调整后的URL
+                displayImage(imageUrl, startTime, targetWidth, targetHeight);
+                downloadBtn.classList.remove('hidden'); // 显示下载按钮
+                
+                // 更新下载按钮文本
+                downloadBtn.querySelector('.download-text').textContent = `下载图片 (已调整到原始尺寸 ${targetWidth}×${targetHeight})`;
+            } else {
+                // 后端未处理，前端处理
+                console.log('后端未处理，前端进行图片调整');
+                fastResizeImage(imageUrl, targetWidth, targetHeight)
+                    .then(resizedUrl => {
+                        currentResultImageUrl = resizedUrl; // 更新为调整后的URL
+                        displayImage(resizedUrl, startTime, targetWidth, targetHeight);
+                        downloadBtn.classList.remove('hidden'); // 显示下载按钮
+                        
+                        // 更新下载按钮文本，显示已调整到原始尺寸
+                        if (data.forceResize) {
+                            downloadBtn.querySelector('.download-text').textContent = `下载图片 (已调整到原始尺寸 ${targetWidth}×${targetHeight})`;
+                        }
+                    })
+                    .catch((error) => {
+                        console.error('图片尺寸调整失败:', error);
+                        // 如果缩放失败，显示原始图片
+                        displayImage(imageUrl, startTime);
+                        downloadBtn.classList.remove('hidden'); // 显示下载按钮
+                    });
+            }
         } else {
             // 不需要调整尺寸，直接显示
             console.log('不需要调整尺寸，直接显示原图');
@@ -997,6 +1026,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const downloadHint = document.querySelector('.download-hint');
         if (downloadHint && originalImageDimensions) {
             downloadHint.textContent = `💡 下载时会自动将图片调整到原始尺寸 (${originalImageDimensions.width} × ${originalImageDimensions.height} 像素)`;
+            console.log('下载提示已更新:', downloadHint.textContent);
+        } else if (downloadHint) {
+            downloadHint.textContent = '💡 下载原始尺寸的图片';
+            console.log('下载提示已更新 (无原始尺寸信息)');
         }
     }
 

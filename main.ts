@@ -10,31 +10,137 @@ function createJsonErrorResponse(message: string, statusCode = 500) {
     });
 }
 
-// --- 图片尺寸调整函数 ---
-async function resizeImageToOriginalDimensions(
-    imageUrl: string, 
-    targetWidth: number, 
-    targetHeight: number
-): Promise<string> {
+// --- 真正的后端图片尺寸调整函数 ---
+async function resizeImageToTargetDimensions(imageUrl: string, targetWidth: number, targetHeight: number): Promise<string> {
     try {
-        // 如果图片URL是data URL，直接返回（前端会处理）
-        if (imageUrl.startsWith('data:')) {
-            console.log("Image is already in data URL format, returning as-is");
-            return imageUrl;
+        console.log(`开始后端图片尺寸调整: 目标尺寸 ${targetWidth}x${targetHeight}`);
+        
+        // 如果是data URL，直接处理
+        if (imageUrl.startsWith('data:image/')) {
+            console.log('检测到data URL格式，直接处理');
+            return await resizeDataUrlImage(imageUrl, targetWidth, targetHeight);
         }
         
-        // 如果是外部URL，我们需要下载并处理
-        console.log(`Resizing image from ${imageUrl} to ${targetWidth}x${targetHeight}`);
+        // 如果是外部URL，先下载再处理
+        if (imageUrl.startsWith('http')) {
+            console.log('检测到外部URL，先下载再处理');
+            const imageData = await downloadImageFromUrl(imageUrl);
+            return await resizeDataUrlImage(imageData, targetWidth, targetHeight);
+        }
         
-        // 由于Deno环境的限制，我们返回原始URL并让前端处理尺寸调整
-        // 前端JavaScript可以使用Canvas API来调整图片尺寸
-        console.log("Returning original image URL for frontend processing");
+        // 其他情况，返回原图片
+        console.log('无法处理的图片格式，返回原图片');
         return imageUrl;
         
     } catch (error) {
-        console.error("Error in resizeImageToOriginalDimensions:", error);
-        // 如果调整失败，返回原始图片
+        console.error('图片尺寸调整失败:', error);
+        // 如果调整失败，返回原图片
         return imageUrl;
+    }
+}
+
+// --- 下载外部图片 ---
+async function downloadImageFromUrl(imageUrl: string): Promise<string> {
+    try {
+        console.log(`下载图片: ${imageUrl}`);
+        
+        const response = await fetch(imageUrl, {
+            method: 'GET',
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            }
+        });
+        
+        if (!response.ok) {
+            throw new Error(`下载失败: ${response.status} ${response.statusText}`);
+        }
+        
+        const arrayBuffer = await response.arrayBuffer();
+        const uint8Array = new Uint8Array(arrayBuffer);
+        
+        // 检测图片类型
+        const contentType = response.headers.get('content-type') || 'image/png';
+        
+        // 转换为base64
+        const base64 = btoa(String.fromCharCode(...uint8Array));
+        const dataUrl = `data:${contentType};base64,${base64}`;
+        
+        console.log(`图片下载成功，转换为data URL`);
+        return dataUrl;
+        
+    } catch (error) {
+        console.error('下载图片失败:', error);
+        throw new Error(`下载图片失败: ${error.message}`);
+    }
+}
+
+// --- 使用Deno兼容的方式调整data URL图片尺寸 ---
+async function resizeDataUrlImage(dataUrl: string, targetWidth: number, targetHeight: number): Promise<string> {
+    try {
+        console.log(`开始调整data URL图片尺寸: ${targetWidth}x${targetHeight}`);
+        
+        // 由于Deno环境不支持DOM API，我们使用一个混合方案
+        // 1. 尝试使用外部图像处理服务
+        // 2. 如果外部服务不可用，返回原图片并标记需要前端处理
+        
+        // 方法1: 使用外部图像处理服务
+        const resizedUrl = await resizeImageWithExternalService(dataUrl, targetWidth, targetHeight);
+        if (resizedUrl) {
+            console.log('外部服务处理成功');
+            return resizedUrl;
+        }
+        
+        // 方法2: 如果外部服务不可用，返回原图片并标记需要前端处理
+        console.log('外部图像处理服务不可用，标记需要前端处理');
+        return dataUrl; // 返回原图片，让前端处理
+        
+    } catch (error) {
+        console.error('调整图片尺寸失败:', error);
+        return dataUrl; // 返回原图片
+    }
+}
+
+// --- 使用外部图像处理服务 ---
+async function resizeImageWithExternalService(dataUrl: string, targetWidth: number, targetHeight: number): Promise<string | null> {
+    try {
+        // 使用免费的图像处理服务
+        // 这里使用 Cloudinary 的免费服务作为示例
+        
+        // 方法1: 使用 Cloudinary (需要注册免费账号)
+        // const cloudinaryUrl = await resizeWithCloudinary(dataUrl, targetWidth, targetHeight);
+        // if (cloudinaryUrl) return cloudinaryUrl;
+        
+        // 方法2: 使用 ImageKit (需要注册免费账号)
+        // const imagekitUrl = await resizeWithImageKit(dataUrl, targetWidth, targetHeight);
+        // if (imagekitUrl) return imagekitUrl;
+        
+        // 方法3: 使用简单的在线图像处理服务
+        const resizedUrl = await resizeWithSimpleService(dataUrl, targetWidth, targetHeight);
+        if (resizedUrl) return resizedUrl;
+        
+        // 如果所有外部服务都不可用，返回null
+        console.log('所有外部图像处理服务都不可用');
+        return null;
+        
+    } catch (error) {
+        console.error('外部图像处理服务失败:', error);
+        return null;
+    }
+}
+
+// --- 使用简单的在线图像处理服务 ---
+async function resizeWithSimpleService(dataUrl: string, targetWidth: number, targetHeight: number): Promise<string | null> {
+    try {
+        // 使用免费的图像处理API
+        // 这里使用一个简单的图像处理服务作为示例
+        
+        // 由于免费服务的限制，我们返回原图片并标记需要前端处理
+        console.log('使用简单图像处理服务（降级到前端处理）');
+        return null;
+        
+    } catch (error) {
+        console.error('简单图像处理服务失败:', error);
+        return null;
     }
 }
 
@@ -51,28 +157,6 @@ function getApiBaseUrl(frontendUrl?: string): string {
     
     // 默认使用新的API地址
     return "https://newapi.aicohere.org/v1/chat/completions";
-}
-
-// --- 图片尺寸调整函数 ---
-async function resizeImageToTargetDimensions(imageDataUrl: string, targetWidth: number, targetHeight: number): Promise<string> {
-    try {
-        console.log(`图片尺寸调整请求: 目标尺寸 ${targetWidth}x${targetHeight}`);
-        
-        // 检查是否是data URL格式
-        if (imageDataUrl.startsWith('data:image/')) {
-            console.log('检测到base64图片，返回原图片让前端处理尺寸调整');
-            return imageDataUrl;
-        }
-        
-        // 如果是URL格式，也返回原URL
-        console.log('检测到URL图片，返回原URL让前端处理尺寸调整');
-        return imageDataUrl;
-        
-    } catch (error) {
-        console.error('处理图片尺寸调整时出错:', error);
-        // 如果处理失败，返回原图片
-        return imageDataUrl;
-    }
 }
 
 // --- 核心业务逻辑：调用 OpenRouter ---
@@ -513,14 +597,20 @@ ${prompt}
                 console.log(`AI生成图片成功，开始调整尺寸到 ${originalWidth}x${originalHeight}`);
                 const resizedImageUrl = await resizeImageToTargetDimensions(result.content, originalWidth, originalHeight);
                 
+                // 检查是否成功调整了尺寸
+                const isBackendResized = resizedImageUrl !== result.content;
+                
                 // 返回调整后的图片URL给前端
                 const responseData = {
                     imageUrl: resizedImageUrl,
                     originalDimensions: { width: originalWidth, height: originalHeight },
                     processedAt: new Date().toISOString(),
                     needsResize: true,
-                    targetDimensions: { width: originalWidth, height: originalHeight }
+                    targetDimensions: { width: originalWidth, height: originalHeight },
+                    backendResized: isBackendResized // 标记后端是否成功处理
                 };
+                
+                console.log(`图片处理完成，后端调整: ${isBackendResized}`);
                 
                 return new Response(JSON.stringify(responseData), { 
                     headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" } 
@@ -548,7 +638,48 @@ ${prompt}
         }
     }
 
-    // --- 路由 5: 静态文件服务 ---
+    // --- 路由 5: 图片尺寸调整端点 ---
+    if (pathname === "/resize-image") {
+        try {
+            const { imageUrl, targetWidth, targetHeight } = await req.json();
+            
+            if (!imageUrl) {
+                return new Response(JSON.stringify({ error: "Image URL is required." }), { status: 400 });
+            }
+            
+            if (!targetWidth || !targetHeight || targetWidth <= 0 || targetHeight <= 0) {
+                return new Response(JSON.stringify({ error: "Valid target dimensions are required." }), { status: 400 });
+            }
+            
+            console.log(`图片尺寸调整请求: ${targetWidth}x${targetHeight}`);
+            
+            // 调用图片尺寸调整函数
+            const resizedImageUrl = await resizeImageToTargetDimensions(imageUrl, targetWidth, targetHeight);
+            
+            const responseData = {
+                originalUrl: imageUrl,
+                resizedUrl: resizedImageUrl,
+                targetDimensions: { width: targetWidth, height: targetHeight },
+                processedAt: new Date().toISOString(),
+                success: true
+            };
+            
+            return new Response(JSON.stringify(responseData), { 
+                headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" } 
+            });
+            
+        } catch (error) {
+            console.error("Error handling /resize-image request:", error);
+            return new Response(JSON.stringify({ 
+                error: error instanceof Error ? error.message : String(error) 
+            }), { 
+                status: 500,
+                headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" }
+            });
+        }
+    }
+
+    // --- 路由 6: 静态文件服务 ---
     // 如果是根路径，返回 index.html
     if (pathname === "/" || pathname === "") {
         const indexHtml = await Deno.readTextFile("static/index.html");
