@@ -676,8 +676,6 @@ document.addEventListener('DOMContentLoaded', () => {
         downloadBtn.disabled = true;
         downloadBtn.querySelector('.download-text').textContent = '准备下载中...';
 
-        console.log('开始下载流程，原始尺寸信息:', originalImageDimensions);
-
         // 检查是否需要调整到原始尺寸
         if (originalImageDimensions && originalImageDimensions.width && originalImageDimensions.height) {
             console.log(`检测到原始尺寸 ${originalImageDimensions.width}x${originalImageDimensions.height}，开始调整图片尺寸`);
@@ -689,45 +687,39 @@ document.addEventListener('DOMContentLoaded', () => {
                     console.log(`图片尺寸调整成功 (${originalImageDimensions.width}x${originalImageDimensions.height})，开始下载调整后的图片`);
                     downloadBtn.querySelector('.download-text').textContent = '下载中...';
                     // 下载调整后的图片
-                    downloadResizedImage(resizedUrl, originalImageDimensions.width, originalImageDimensions.height);
+                    simpleDownload(resizedUrl, originalImageDimensions.width, originalImageDimensions.height);
                 })
                 .catch(error => {
                     console.error('图片尺寸调整失败:', error);
                     // 如果调整失败，下载原始图片
                     console.log('尺寸调整失败，下载原始图片');
                     downloadBtn.querySelector('.download-text').textContent = '下载中...';
-                    downloadResizedImage(currentResultImageUrl);
-                })
-                .finally(() => {
-                    // 恢复下载按钮状态
-                    downloadBtn.classList.remove('downloading');
-                    downloadBtn.disabled = false;
-                    downloadBtn.querySelector('.download-text').textContent = '下载图片 (自动调整到原始尺寸)';
+                    simpleDownload(currentResultImageUrl);
                 });
         } else {
             console.log('没有原始尺寸信息，直接下载原始图片');
             downloadBtn.querySelector('.download-text').textContent = '下载中...';
             // 没有原始尺寸信息，直接下载
-            downloadResizedImage(currentResultImageUrl);
+            simpleDownload(currentResultImageUrl);
         }
     }
 
-    // 下载调整后的图片
-    function downloadResizedImage(imageUrl, targetWidth = null, targetHeight = null) {
-        console.log('downloadResizedImage 被调用');
+    // 简化的下载函数
+    function simpleDownload(imageUrl, targetWidth = null, targetHeight = null) {
+        console.log('simpleDownload 被调用');
         console.log('图片URL:', imageUrl);
         console.log('目标尺寸:', targetWidth, 'x', targetHeight);
         
-        // 检查是否是data URL格式
-        if (imageUrl.startsWith('data:')) {
-            console.log('检测到 Data URL 格式，使用直接下载方式');
-            
-            try {
+        try {
+            // 检查是否是data URL格式
+            if (imageUrl.startsWith('data:')) {
+                console.log('检测到 Data URL 格式，使用直接下载方式');
+                
                 // 对于data URL，直接创建下载链接
                 const link = document.createElement('a');
                 link.href = imageUrl;
                 
-                // 生成文件名：nano-banana-修图结果-时间戳.png
+                // 生成文件名
                 const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
                 let filename = `nano-banana-修图结果-${timestamp}.png`;
                 
@@ -743,15 +735,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 // 添加到DOM，点击，然后清理
                 document.body.appendChild(link);
-                console.log('下载链接已添加到DOM');
-                
                 link.click();
-                console.log('下载链接已点击');
-                
                 document.body.removeChild(link);
-                console.log('下载链接已从DOM移除');
                 
-                console.log('data URL图片下载成功');
+                console.log('图片下载成功');
                 
                 // 延迟恢复按钮状态，给用户视觉反馈
                 setTimeout(() => {
@@ -762,30 +749,28 @@ document.addEventListener('DOMContentLoaded', () => {
                     setTimeout(() => {
                         downloadBtn.classList.remove('success');
                         downloadBtn.disabled = false;
-                        downloadBtn.querySelector('.download-text').textContent = '下载图片 (自动调整到原始尺寸)';
+                        if (targetWidth && targetHeight) {
+                            downloadBtn.querySelector('.download-text').textContent = `下载图片 (已调整到原始尺寸 ${targetWidth}×${targetHeight})`;
+                        } else {
+                            downloadBtn.querySelector('.download-text').textContent = '下载图片';
+                        }
                     }, 1500);
                 }, 500);
                 
                 return;
-            } catch (error) {
-                console.error('Data URL 下载过程中出错:', error);
-                alert('下载失败: ' + error.message);
-                resetDownloadButton();
-                return;
             }
-        }
-        
-        console.log('检测到 URL 格式，使用fetch方式下载');
-        
-        // 对于URL格式，使用fetch方式下载（避免跳转问题）
-        fetch(imageUrl, {
-            method: 'GET',
-            mode: 'cors',
-            cache: 'no-cache',
-            headers: {
-                'Accept': 'image/*'
-            }
-        })
+            
+            console.log('检测到 URL 格式，使用fetch方式下载');
+            
+            // 对于URL格式，使用fetch方式下载
+            fetch(imageUrl, {
+                method: 'GET',
+                mode: 'cors',
+                cache: 'no-cache',
+                headers: {
+                    'Accept': 'image/*'
+                }
+            })
             .then(response => {
                 console.log('Fetch 响应状态:', response.status, response.statusText);
                 if (!response.ok) {
@@ -801,7 +786,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 const blobUrl = URL.createObjectURL(blob);
                 console.log('创建的 blob URL:', blobUrl);
                 
-                // 生成文件名：nano-banana-修图结果-时间戳.png
                 const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
                 let filename = `nano-banana-修图结果-${timestamp}.png`;
                 
@@ -809,8 +793,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (targetWidth && targetHeight) {
                     filename = `nano-banana-修图结果-${targetWidth}x${targetHeight}-${timestamp}.png`;
                 }
-                
-                console.log('生成的文件名:', filename);
                 
                 // 创建下载链接
                 const link = document.createElement('a');
@@ -820,13 +802,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 // 添加到DOM，点击，然后清理
                 document.body.appendChild(link);
-                console.log('下载链接已添加到DOM');
-                
                 link.click();
-                console.log('下载链接已点击');
-                
                 document.body.removeChild(link);
-                console.log('下载链接已从DOM移除');
+                
+                // 清理blob URL
+                setTimeout(() => {
+                    URL.revokeObjectURL(blobUrl);
+                    console.log('blob URL 已清理');
+                }, 1000);
                 
                 console.log('图片下载成功');
                 
@@ -839,35 +822,43 @@ document.addEventListener('DOMContentLoaded', () => {
                     setTimeout(() => {
                         downloadBtn.classList.remove('success');
                         downloadBtn.disabled = false;
-                        downloadBtn.querySelector('.download-text').textContent = '下载图片 (自动调整到原始尺寸)';
+                        if (targetWidth && targetHeight) {
+                            downloadBtn.querySelector('.download-text').textContent = `下载图片 (已调整到原始尺寸 ${targetWidth}×${targetHeight})`;
+                        } else {
+                            downloadBtn.querySelector('.download-text').textContent = '下载图片';
+                        }
                     }, 1500);
                 }, 500);
-                
-                // 清理blob URL
-                setTimeout(() => {
-                    URL.revokeObjectURL(blobUrl);
-                    console.log('blob URL 已清理');
-                }, 1000);
             })
             .catch(error => {
                 console.error('图片下载失败:', error);
                 
-                // 如果是网络错误，尝试重试
-                if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
-                    console.log('检测到网络错误，尝试重试下载...');
-                    downloadBtn.querySelector('.download-text').textContent = '重试下载中...';
-                    
-                    // 延迟1秒后重试
-                    setTimeout(() => {
-                        downloadResizedImage(imageUrl, targetWidth, targetHeight);
-                    }, 1000);
-                    return;
+                // 恢复按钮状态
+                downloadBtn.classList.remove('downloading');
+                downloadBtn.disabled = false;
+                if (targetWidth && targetHeight) {
+                    downloadBtn.querySelector('.download-text').textContent = `下载图片 (已调整到原始尺寸 ${targetWidth}×${targetHeight})`;
+                } else {
+                    downloadBtn.querySelector('.download-text').textContent = '下载图片';
                 }
                 
-                // 其他错误显示给用户
-                alert('下载失败，请重试: ' + error.message);
-                resetDownloadButton();
+                alert('下载失败: ' + error.message);
             });
+            
+        } catch (error) {
+            console.error('simpleDownload 执行失败:', error);
+            
+            // 恢复按钮状态
+            downloadBtn.classList.remove('downloading');
+            downloadBtn.disabled = false;
+            if (targetWidth && targetHeight) {
+                downloadBtn.querySelector('.download-text').textContent = `下载图片 (已调整到原始尺寸 ${targetWidth}×${targetHeight})`;
+            } else {
+                downloadBtn.querySelector('.download-text').textContent = '下载图片';
+            }
+            
+            alert('下载失败: ' + error.message);
+        }
     }
     
     // 重置下载按钮状态的辅助函数
@@ -969,15 +960,14 @@ document.addEventListener('DOMContentLoaded', () => {
                         downloadBtn.classList.remove('hidden'); // 显示下载按钮
                         
                         // 更新下载按钮文本，显示已调整到原始尺寸
-                        if (data.forceResize) {
-                            downloadBtn.querySelector('.download-text').textContent = `下载图片 (已调整到原始尺寸 ${targetWidth}×${targetHeight})`;
-                        }
+                        downloadBtn.querySelector('.download-text').textContent = `下载图片 (已调整到原始尺寸 ${targetWidth}×${targetHeight})`;
                     })
                     .catch((error) => {
                         console.error('图片尺寸调整失败:', error);
                         // 如果缩放失败，显示原始图片
                         displayImage(imageUrl, startTime);
                         downloadBtn.classList.remove('hidden'); // 显示下载按钮
+                        downloadBtn.querySelector('.download-text').textContent = '下载图片 (原始尺寸)';
                     });
             }
         } else {
@@ -985,6 +975,7 @@ document.addEventListener('DOMContentLoaded', () => {
             console.log('不需要调整尺寸，直接显示原图');
             displayImage(imageUrl, startTime);
             downloadBtn.classList.remove('hidden'); // 显示下载按钮
+            downloadBtn.querySelector('.download-text').textContent = '下载图片';
         }
     }
     

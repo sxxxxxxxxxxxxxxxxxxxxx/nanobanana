@@ -24,8 +24,13 @@ async function resizeImageToTargetDimensions(imageUrl: string, targetWidth: numb
         // 如果是外部URL，先下载再处理
         if (imageUrl.startsWith('http')) {
             console.log('检测到外部URL，先下载再处理');
-            const imageData = await downloadImageFromUrl(imageUrl);
-            return await resizeDataUrlImage(imageData, targetWidth, targetHeight);
+            try {
+                const imageData = await downloadImageFromUrl(imageUrl);
+                return await resizeDataUrlImage(imageData, targetWidth, targetHeight);
+            } catch (downloadError) {
+                console.error('下载图片失败，返回原URL:', downloadError);
+                return imageUrl; // 下载失败时返回原URL
+            }
         }
         
         // 其他情况，返回原图片
@@ -44,12 +49,19 @@ async function downloadImageFromUrl(imageUrl: string): Promise<string> {
     try {
         console.log(`下载图片: ${imageUrl}`);
         
+        // 添加超时和重试机制
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 30000); // 30秒超时
+        
         const response = await fetch(imageUrl, {
             method: 'GET',
+            signal: controller.signal,
             headers: {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
             }
         });
+        
+        clearTimeout(timeoutId);
         
         if (!response.ok) {
             throw new Error(`下载失败: ${response.status} ${response.statusText}`);
@@ -61,8 +73,13 @@ async function downloadImageFromUrl(imageUrl: string): Promise<string> {
         // 检测图片类型
         const contentType = response.headers.get('content-type') || 'image/png';
         
-        // 转换为base64
-        const base64 = btoa(String.fromCharCode(...uint8Array));
+        // 转换为base64 - 使用更安全的方式
+        let base64 = '';
+        for (let i = 0; i < uint8Array.length; i++) {
+            base64 += String.fromCharCode(uint8Array[i]);
+        }
+        base64 = btoa(base64);
+        
         const dataUrl = `data:${contentType};base64,${base64}`;
         
         console.log(`图片下载成功，转换为data URL`);
