@@ -1,16 +1,19 @@
 document.addEventListener('DOMContentLoaded', () => {
+
     // 获取所有DOM元素
     const uploadArea = document.querySelector('.upload-area');
     const fileInput = document.getElementById('image-upload');
     const thumbnailsContainer = document.getElementById('thumbnails-container');
     const promptInput = document.getElementById('prompt-input');
     const apiKeyInput = document.getElementById('api-key-input');
+
     const apiBaseUrlInput = document.getElementById('api-base-url-input');
     const modelInput = document.getElementById('model-input');
     const generateBtn = document.getElementById('generate-btn');
     const btnText = generateBtn.querySelector('.btn-text');
     const spinner = generateBtn.querySelector('.spinner');
     const resultContainer = document.getElementById('result-image-container');
+
     const resultInfo = document.getElementById('result-info');
     const processedTime = document.getElementById('processed-time');
     const outputDimensions = document.getElementById('output-dimensions');
@@ -43,6 +46,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // 状态变量
     let selectedFiles = [];
+
     let selectedUrls = [];
     let currentInputMethod = 'upload';
     let originalImageDimensions = null;
@@ -300,6 +304,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 createThumbnail(file);
             }
         });
+
         updateDimensions();
         updateProgress(0, '图片上传成功', 25);
     }
@@ -320,6 +325,7 @@ document.addEventListener('DOMContentLoaded', () => {
             removeBtn.onclick = () => {
                 selectedFiles = selectedFiles.filter(f => f.name !== file.name);
                 wrapper.remove();
+
                 updateDimensions();
             };
             
@@ -329,6 +335,7 @@ document.addEventListener('DOMContentLoaded', () => {
         };
         reader.readAsDataURL(file);
     }
+
 
     // --- URL输入方式处理 ---
     imageUrlInput.addEventListener('input', debounce(handleUrlInput, 500));
@@ -461,14 +468,17 @@ document.addEventListener('DOMContentLoaded', () => {
     
     generateBtn.addEventListener('click', async () => {
         if (!apiKeyInput.value.trim()) {
+
             alert('请输入 API 密钥');
             return;
         }
+
 
         if (currentInputMethod === 'upload' && selectedFiles.length === 0) {
             alert('请选择至少一张图片');
             return;
         }
+
 
         if (currentInputMethod === 'url' && selectedUrls.length === 0) {
             alert('请输入至少一个图片URL');
@@ -476,6 +486,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         if (!promptInput.value.trim()) {
+
             alert('请输入修图指令');
             return;
         }
@@ -485,11 +496,13 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
+
         // 保存用户设置
         localStorage.setItem('nanoBananaApiKey', apiKeyInput.value);
         localStorage.setItem('nanoBananaModel', modelInput.value);
 
         setLoading(true);
+
         showProgress();
         const startTime = Date.now();
 
@@ -501,14 +514,17 @@ document.addEventListener('DOMContentLoaded', () => {
             if (currentInputMethod === 'upload') {
                 // 将文件转换为Base64
             const conversionPromises = selectedFiles.map(file => fileToBase64(file));
+
                 images = await Promise.all(conversionPromises);
             } else {
                 // 使用URL
                 images = selectedUrls.map(url => url.trim());
             }
             
+
             updateProgress(2, '生成图片中...', 75);
             
+
             // 发送到新的修图接口
             const response = await fetch('/edit-image', {
                 method: 'POST',
@@ -516,8 +532,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({
+
                     images: images,
                     prompt: promptInput.value,
+
                     originalWidth: originalImageDimensions.width,
                     originalHeight: originalImageDimensions.height,
                     apikey: apiKeyInput.value,
@@ -532,6 +550,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 throw new Error(data.error);
             }
 
+
             updateProgress(3, '处理完成', 100);
             
             // 添加延迟以显示完成状态
@@ -541,6 +560,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }, 500);
             
         } catch (error) {
+
             // 特殊处理429错误（速率限制）
             if (error.message.includes('429') || error.message.includes('Rate limit exceeded')) {
                 const errorMessage = `
@@ -568,6 +588,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 // 其他错误正常显示
             alert('Error: ' + error.message);
             resultContainer.innerHTML = `<p>Error: ${error.message}</p>`;
+
             }
             hideProgress();
         } finally {
@@ -577,12 +598,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function setLoading(isLoading) {
         generateBtn.disabled = isLoading;
+
         btnText.textContent = isLoading ? '处理中...' : '开始修图';
         spinner.classList.toggle('hidden', !isLoading);
     }
 
     function fileToBase64(file) {
         return new Promise((resolve, reject) => {
+
             // 检查文件类型
             if (!file.type.startsWith('image/')) {
                 reject(new Error(`不支持的文件类型: ${file.type}`));
@@ -596,6 +619,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             
             const reader = new FileReader();
+
             reader.onload = () => {
                 try {
                     const result = reader.result;
@@ -614,9 +638,14 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+
     // --- 下载功能 ---
     function downloadImage() {
+        console.log('下载按钮被点击');
+        console.log('当前图片URL:', currentResultImageUrl);
+        
         if (!currentResultImageUrl) {
+            console.error('没有可下载的图片');
             alert('没有可下载的图片');
             return;
         }
@@ -627,20 +656,26 @@ document.addEventListener('DOMContentLoaded', () => {
         const originalText = downloadBtn.querySelector('.download-text').textContent;
         downloadBtn.querySelector('.download-text').textContent = '调整尺寸中...';
 
+        console.log('开始下载流程，原始尺寸信息:', originalImageDimensions);
+
         // 检查是否需要调整到原始尺寸
         if (originalImageDimensions && originalImageDimensions.width && originalImageDimensions.height) {
+            console.log('检测到原始尺寸，开始调整图片尺寸');
             // 自动调整到原始图片的尺寸
             fastResizeImage(currentResultImageUrl, originalImageDimensions.width, originalImageDimensions.height)
                 .then(resizedUrl => {
+                    console.log('图片尺寸调整成功，开始下载调整后的图片');
                     // 下载调整后的图片
                     downloadResizedImage(resizedUrl, originalImageDimensions.width, originalImageDimensions.height);
                 })
                 .catch(error => {
                     console.error('图片尺寸调整失败:', error);
                     // 如果调整失败，下载原始图片
+                    console.log('尺寸调整失败，下载原始图片');
                     downloadResizedImage(currentResultImageUrl);
                 });
         } else {
+            console.log('没有原始尺寸信息，直接下载原始图片');
             // 没有原始尺寸信息，直接下载
             downloadResizedImage(currentResultImageUrl);
         }
@@ -648,17 +683,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 下载调整后的图片
     function downloadResizedImage(imageUrl, targetWidth = null, targetHeight = null) {
-        // 使用fetch下载图片数据，然后创建blob URL进行下载
-        fetch(imageUrl)
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error(`图片下载失败: ${response.status} ${response.statusText}`);
-                }
-                return response.blob();
-            })
-            .then(blob => {
-                // 创建blob URL
-                const blobUrl = URL.createObjectURL(blob);
+        console.log('downloadResizedImage 被调用');
+        console.log('图片URL:', imageUrl);
+        console.log('目标尺寸:', targetWidth, 'x', targetHeight);
+        
+        // 检查是否是data URL格式
+        if (imageUrl.startsWith('data:')) {
+            console.log('检测到 Data URL 格式，使用直接下载方式');
+            
+            try {
+                // 对于data URL，直接创建下载链接
+                const link = document.createElement('a');
+                link.href = imageUrl;
                 
                 // 生成文件名：nano-banana-修图结果-时间戳.png
                 const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
@@ -669,6 +705,75 @@ document.addEventListener('DOMContentLoaded', () => {
                     filename = `nano-banana-修图结果-${targetWidth}x${targetHeight}-${timestamp}.png`;
                 }
                 
+                console.log('生成的文件名:', filename);
+                
+                link.download = filename;
+                link.style.display = 'none';
+                
+                // 添加到DOM，点击，然后清理
+                document.body.appendChild(link);
+                console.log('下载链接已添加到DOM');
+                
+                link.click();
+                console.log('下载链接已点击');
+                
+                document.body.removeChild(link);
+                console.log('下载链接已从DOM移除');
+                
+                console.log('data URL图片下载成功');
+                
+                // 延迟恢复按钮状态，给用户视觉反馈
+                setTimeout(() => {
+                    downloadBtn.classList.remove('downloading');
+                    downloadBtn.classList.add('success');
+                    downloadBtn.querySelector('.download-text').textContent = '下载完成！';
+                    
+                    setTimeout(() => {
+                        downloadBtn.classList.remove('success');
+                        downloadBtn.disabled = false;
+                        downloadBtn.querySelector('.download-text').textContent = '下载图片 (自动调整到原始尺寸)';
+                    }, 1500);
+                }, 500);
+                
+                return;
+            } catch (error) {
+                console.error('Data URL 下载过程中出错:', error);
+                alert('下载失败: ' + error.message);
+                resetDownloadButton();
+                return;
+            }
+        }
+        
+        console.log('检测到 URL 格式，使用 fetch 下载方式');
+        
+        // 对于URL格式，使用fetch下载图片数据，然后创建blob URL进行下载
+        fetch(imageUrl)
+            .then(response => {
+                console.log('Fetch 响应状态:', response.status, response.statusText);
+                if (!response.ok) {
+                    throw new Error(`图片下载失败: ${response.status} ${response.statusText}`);
+                }
+                return response.blob();
+            })
+            .then(blob => {
+                console.log('图片数据获取成功，blob 大小:', blob.size, '字节');
+                console.log('blob 类型:', blob.type);
+                
+                // 创建blob URL
+                const blobUrl = URL.createObjectURL(blob);
+                console.log('创建的 blob URL:', blobUrl);
+                
+                // 生成文件名：nano-banana-修图结果-时间戳.png
+                const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+                let filename = `nano-banana-修图结果-${timestamp}.png`;
+                
+                // 如果调整了尺寸，在文件名中标注
+                if (targetWidth && targetHeight) {
+                    filename = `nano-banana-修图结果-${targetWidth}x${targetHeight}-${timestamp}.png`;
+                }
+                
+                console.log('生成的文件名:', filename);
+                
                 // 创建下载链接
                 const link = document.createElement('a');
                 link.href = blobUrl;
@@ -677,19 +782,25 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 // 添加到DOM，点击，然后清理
                 document.body.appendChild(link);
+                console.log('下载链接已添加到DOM');
+                
                 link.click();
+                console.log('下载链接已点击');
+                
                 document.body.removeChild(link);
+                console.log('下载链接已从DOM移除');
                 
                 // 清理blob URL
                 setTimeout(() => {
                     URL.revokeObjectURL(blobUrl);
+                    console.log('blob URL 已清理');
                 }, 1000);
                 
                 console.log('图片下载成功');
             })
             .catch(error => {
                 console.error('图片下载失败:', error);
-                alert('下载失败，请重试');
+                alert('下载失败，请重试: ' + error.message);
             })
             .finally(() => {
                 // 延迟恢复按钮状态，给用户视觉反馈
@@ -705,6 +816,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     }, 1500);
                 }, 500);
             });
+    }
+    
+    // 重置下载按钮状态的辅助函数
+    function resetDownloadButton() {
+        downloadBtn.classList.remove('downloading', 'success');
+        downloadBtn.disabled = false;
+        downloadBtn.querySelector('.download-text').textContent = '下载图片 (自动调整到原始尺寸)';
     }
 
     // --- 高效的图片缩放函数 ---
@@ -757,6 +875,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function displayResult(imageUrl, data, startTime) {
         resultContainer.innerHTML = '';
+
         currentResultImageUrl = imageUrl; // 保存当前图片URL
         
         // 检查是否需要调整图片尺寸
@@ -786,6 +905,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function displayImage(imageUrl, startTime, targetWidth = null, targetHeight = null) {
         const img = document.createElement('img');
         img.src = imageUrl;
+
         img.alt = '修图结果';
         img.onload = () => {
             // 显示结果信息
@@ -813,6 +933,7 @@ document.addEventListener('DOMContentLoaded', () => {
         };
         resultContainer.appendChild(img);
     }
+
 
     // 更新下载提示信息
     function updateDownloadHint() {
@@ -901,3 +1022,4 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 });
+
