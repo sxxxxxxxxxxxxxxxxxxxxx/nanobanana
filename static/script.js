@@ -654,17 +654,20 @@ document.addEventListener('DOMContentLoaded', () => {
         downloadBtn.classList.add('downloading');
         downloadBtn.disabled = true;
         const originalText = downloadBtn.querySelector('.download-text').textContent;
-        downloadBtn.querySelector('.download-text').textContent = '调整尺寸中...';
+        downloadBtn.querySelector('.download-text').textContent = '准备下载中...';
 
         console.log('开始下载流程，原始尺寸信息:', originalImageDimensions);
 
         // 检查是否需要调整到原始尺寸
         if (originalImageDimensions && originalImageDimensions.width && originalImageDimensions.height) {
             console.log('检测到原始尺寸，开始调整图片尺寸');
+            downloadBtn.querySelector('.download-text').textContent = '调整尺寸中...';
+            
             // 自动调整到原始图片的尺寸
             fastResizeImage(currentResultImageUrl, originalImageDimensions.width, originalImageDimensions.height)
                 .then(resizedUrl => {
                     console.log('图片尺寸调整成功，开始下载调整后的图片');
+                    downloadBtn.querySelector('.download-text').textContent = '下载中...';
                     // 下载调整后的图片
                     downloadResizedImage(resizedUrl, originalImageDimensions.width, originalImageDimensions.height);
                 })
@@ -672,10 +675,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     console.error('图片尺寸调整失败:', error);
                     // 如果调整失败，下载原始图片
                     console.log('尺寸调整失败，下载原始图片');
+                    downloadBtn.querySelector('.download-text').textContent = '下载中...';
                     downloadResizedImage(currentResultImageUrl);
                 });
         } else {
             console.log('没有原始尺寸信息，直接下载原始图片');
+            downloadBtn.querySelector('.download-text').textContent = '下载中...';
             // 没有原始尺寸信息，直接下载
             downloadResizedImage(currentResultImageUrl);
         }
@@ -747,7 +752,14 @@ document.addEventListener('DOMContentLoaded', () => {
         console.log('检测到 URL 格式，使用 fetch 下载方式');
         
         // 对于URL格式，使用fetch下载图片数据，然后创建blob URL进行下载
-        fetch(imageUrl)
+        fetch(imageUrl, {
+            method: 'GET',
+            mode: 'cors',
+            cache: 'no-cache',
+            headers: {
+                'Accept': 'image/*'
+            }
+        })
             .then(response => {
                 console.log('Fetch 响应状态:', response.status, response.statusText);
                 if (!response.ok) {
@@ -797,12 +809,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }, 1000);
                 
                 console.log('图片下载成功');
-            })
-            .catch(error => {
-                console.error('图片下载失败:', error);
-                alert('下载失败，请重试: ' + error.message);
-            })
-            .finally(() => {
+                
                 // 延迟恢复按钮状态，给用户视觉反馈
                 setTimeout(() => {
                     downloadBtn.classList.remove('downloading');
@@ -815,6 +822,25 @@ document.addEventListener('DOMContentLoaded', () => {
                         downloadBtn.querySelector('.download-text').textContent = '下载图片 (自动调整到原始尺寸)';
                     }, 1500);
                 }, 500);
+            })
+            .catch(error => {
+                console.error('图片下载失败:', error);
+                
+                // 如果是网络错误，尝试重试
+                if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
+                    console.log('检测到网络错误，尝试重试下载...');
+                    downloadBtn.querySelector('.download-text').textContent = '重试下载中...';
+                    
+                    // 延迟1秒后重试
+                    setTimeout(() => {
+                        downloadResizedImage(imageUrl, targetWidth, targetHeight);
+                    }, 1000);
+                    return;
+                }
+                
+                // 其他错误显示给用户
+                alert('下载失败，请重试: ' + error.message);
+                resetDownloadButton();
             });
     }
     
@@ -831,7 +857,13 @@ document.addEventListener('DOMContentLoaded', () => {
             const img = new Image();
             img.crossOrigin = 'anonymous';
             
+            // 设置超时处理
+            const timeout = setTimeout(() => {
+                reject(new Error('图片加载超时'));
+            }, 10000); // 10秒超时
+            
             img.onload = () => {
+                clearTimeout(timeout);
                 console.log(`开始调整图片尺寸: ${img.naturalWidth}x${img.naturalHeight} -> ${targetWidth}x${targetHeight}`);
                 
                 // 如果尺寸已经匹配，直接返回原图
@@ -841,30 +873,36 @@ document.addEventListener('DOMContentLoaded', () => {
                     return;
                 }
                 
-                // 创建canvas进行缩放
-                const canvas = document.createElement('canvas');
-                const ctx = canvas.getContext('2d', { 
-                    alpha: false,
-                    willReadFrequently: false
-                });
-                
-                canvas.width = targetWidth;
-                canvas.height = targetHeight;
-                
-                // 设置高质量缩放
-                ctx.imageSmoothingEnabled = true;
-                ctx.imageSmoothingQuality = 'high';
-                
-                // 绘制缩放后的图片
-                ctx.drawImage(img, 0, 0, targetWidth, targetHeight);
-                
-                // 转换为高质量PNG格式
-                const resizedUrl = canvas.toDataURL('image/png', 1.0);
-                console.log('图片尺寸调整完成');
-                resolve(resizedUrl);
+                try {
+                    // 创建canvas进行缩放
+                    const canvas = document.createElement('canvas');
+                    const ctx = canvas.getContext('2d', { 
+                        alpha: false,
+                        willReadFrequently: false
+                    });
+                    
+                    canvas.width = targetWidth;
+                    canvas.height = targetHeight;
+                    
+                    // 设置高质量缩放
+                    ctx.imageSmoothingEnabled = true;
+                    ctx.imageSmoothingQuality = 'high';
+                    
+                    // 绘制缩放后的图片
+                    ctx.drawImage(img, 0, 0, targetWidth, targetHeight);
+                    
+                    // 转换为高质量PNG格式
+                    const resizedUrl = canvas.toDataURL('image/png', 1.0);
+                    console.log('图片尺寸调整完成');
+                    resolve(resizedUrl);
+                } catch (error) {
+                    console.error('Canvas处理失败:', error);
+                    reject(new Error('图片处理失败: ' + error.message));
+                }
             };
             
             img.onerror = (error) => {
+                clearTimeout(timeout);
                 console.error('图片加载失败:', error);
                 reject(new Error('图片加载失败'));
             };
@@ -971,7 +1009,14 @@ document.addEventListener('DOMContentLoaded', () => {
     // 下载历史记录中的调整后图片
     function downloadHistoryResizedImage(imageUrl, targetWidth = null, targetHeight = null) {
         // 使用fetch下载图片数据，然后创建blob URL进行下载
-        fetch(imageUrl)
+        fetch(imageUrl, {
+            method: 'GET',
+            mode: 'cors',
+            cache: 'no-cache',
+            headers: {
+                'Accept': 'image/*'
+            }
+        })
             .then(response => {
                 if (!response.ok) {
                     throw new Error(`历史图片下载失败: ${response.status} ${response.statusText}`);
@@ -1010,6 +1055,18 @@ document.addEventListener('DOMContentLoaded', () => {
             })
             .catch(error => {
                 console.error('历史图片下载失败:', error);
+                
+                // 如果是网络错误，尝试重试
+                if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
+                    console.log('检测到网络错误，尝试重试历史图片下载...');
+                    
+                    // 延迟1秒后重试
+                    setTimeout(() => {
+                        downloadHistoryResizedImage(imageUrl, targetWidth, targetHeight);
+                    }, 1000);
+                    return;
+                }
+                
                 alert('下载失败，请重试');
             });
     }
@@ -1022,4 +1079,3 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 });
-

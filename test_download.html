@@ -151,7 +151,14 @@
             console.log('检测到 URL，使用 fetch 下载方式');
             
             // 对于URL格式，使用fetch下载图片数据，然后创建blob URL进行下载
-            fetch(imageUrl)
+            fetch(imageUrl, {
+                method: 'GET',
+                mode: 'cors',
+                cache: 'no-cache',
+                headers: {
+                    'Accept': 'image/*'
+                }
+            })
                 .then(response => {
                     if (!response.ok) {
                         throw new Error(`图片下载失败: ${response.status} ${response.statusText}`);
@@ -192,6 +199,18 @@
                 })
                 .catch(error => {
                     console.error('图片下载失败:', error);
+                    
+                    // 如果是网络错误，尝试重试
+                    if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
+                        console.log('检测到网络错误，尝试重试下载...');
+                        
+                        // 延迟1秒后重试
+                        setTimeout(() => {
+                            downloadResizedImage(imageUrl, targetWidth, targetHeight);
+                        }, 1000);
+                        return;
+                    }
+                    
                     throw error;
                 });
         }
