@@ -4,12 +4,16 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>nano banana - AI修图工具</title>
-    <link rel="icon" href="/xiguadepi.jpeg" type="image/jpeg">
+    <link rel="icon" href="/xiguadepi.jpg" type="image/jpeg">
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <header>
         <h1 class="title">🍌 nano banana</h1>
+        <p class="subtitle">AI智能修图 · 保持原始分辨率 · 专业级图像处理</p>
+        <button id="theme-toggle" class="theme-toggle" title="切换主题">
+            <span class="theme-icon">🌙</span>
+        </button>
     </header>
     
     <div class="main-container">
@@ -46,14 +50,17 @@
                 
                 <!-- URL输入方式 -->
                 <div id="url-method" class="input-method-content">
-                    <textarea id="image-url-input" placeholder="请输入图片URL，每行一个URL，支持多张图片"></textarea>
+                    <textarea id="image-url-input" placeholder="每行一个URL，支持多张图片&#10;https://example.com/image.jpg"></textarea>
                     <div id="url-preview-container"></div>
                 </div>
             </div>
 
             <div class="prompt-section">
-                <h2>2. 输入修图指令</h2>
-                <textarea id="prompt-input" placeholder="例如：将背景改为蓝色，增加对比度，保持原始分辨率"></textarea>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                    <h2 style="margin-bottom: 0;">2. 输入修图指令</h2>
+                    <span id="prompt-counter" class="char-counter">0 字符</span>
+                </div>
+                <textarea id="prompt-input" placeholder="例如：增强对比度、调整色彩、去除背景...&#10;💡 提示：描述越具体，效果越好" maxlength="500"></textarea>
             </div>
             
             <div class="dimensions-section">
@@ -124,7 +131,11 @@
             </div>
             
             <div id="result-image-container">
-                <p>修图后的图片将显示在这里</p>
+                <div class="empty-state">
+                    <div class="empty-icon">🖼️</div>
+                    <p class="empty-text">修图后的图片将显示在这里</p>
+                    <p class="empty-hint">上传图片并输入指令开始创作</p>
+                </div>
             </div>
             
             <div id="result-info" class="result-info hidden">
@@ -170,6 +181,9 @@
             </div>
         </div>
     </div>
+    
+    <!-- Toast通知容器 -->
+    <div id="toast-container" class="toast-container"></div>
     
     <script src="script.js"></script>
 </body>

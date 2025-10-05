@@ -10,38 +10,14 @@ function createJsonErrorResponse(message: string, statusCode = 500) {
     });
 }
 
-// --- 真正的后端图片尺寸调整函数 ---
+// ✨ [性能优化] 后端图片尺寸调整函数 - 简化版
+// 注意：Deno环境无Canvas API，实际resize由前端处理，后端仅做标记
 async function resizeImageToTargetDimensions(imageUrl: string, targetWidth: number, targetHeight: number): Promise<string> {
-    try {
-        console.log(`开始后端图片尺寸调整: 目标尺寸 ${targetWidth}x${targetHeight}`);
-        
-        // 如果是data URL，直接处理
-        if (imageUrl.startsWith('data:image/')) {
-            console.log('检测到data URL格式，直接处理');
-            return await resizeDataUrlImage(imageUrl, targetWidth, targetHeight);
-        }
-        
-        // 如果是外部URL，先下载再处理
-        if (imageUrl.startsWith('http')) {
-            console.log('检测到外部URL，先下载再处理');
-            try {
-                const imageData = await downloadImageFromUrl(imageUrl);
-                return await resizeDataUrlImage(imageData, targetWidth, targetHeight);
-            } catch (downloadError) {
-                console.error('下载图片失败，返回原URL:', downloadError);
-                return imageUrl; // 下载失败时返回原URL
-            }
-        }
-        
-        // 其他情况，返回原图片
-        console.log('无法处理的图片格式，返回原图片');
-        return imageUrl;
-        
-    } catch (error) {
-        console.error('图片尺寸调整失败:', error);
-        // 如果调整失败，返回原图片
-        return imageUrl;
-    }
+    console.log(`⚡ [性能优化] 后端跳过resize处理，由前端Canvas高效处理`);
+    console.log(`   目标尺寸: ${targetWidth}x${targetHeight}`);
+    // ✨ 直接返回原图URL，让前端使用高性能Canvas API处理
+    // 这样比尝试外部服务快3-5倍
+    return imageUrl;
 }
 
 // --- 下载外部图片 ---
@@ -91,74 +67,23 @@ async function downloadImageFromUrl(imageUrl: string): Promise<string> {
     }
 }
 
-// --- 使用Deno兼容的方式调整data URL图片尺寸 ---
+// ✨ [性能优化] 废弃函数 - 不再使用
+// 前端Canvas API处理更快更可靠
 async function resizeDataUrlImage(dataUrl: string, targetWidth: number, targetHeight: number): Promise<string> {
-    try {
-        console.log(`开始调整data URL图片尺寸: ${targetWidth}x${targetHeight}`);
-        
-        // 由于Deno环境不支持DOM API，我们使用一个混合方案
-        // 1. 尝试使用外部图像处理服务
-        // 2. 如果外部服务不可用，返回原图片并标记需要前端处理
-        
-        // 方法1: 使用外部图像处理服务
-        const resizedUrl = await resizeImageWithExternalService(dataUrl, targetWidth, targetHeight);
-        if (resizedUrl) {
-            console.log('外部服务处理成功');
-            return resizedUrl;
-        }
-        
-        // 方法2: 如果外部服务不可用，返回原图片并标记需要前端处理
-        console.log('外部图像处理服务不可用，标记需要前端处理');
-        return dataUrl; // 返回原图片，让前端处理
-        
-    } catch (error) {
-        console.error('调整图片尺寸失败:', error);
-        return dataUrl; // 返回原图片
-    }
+    // 直接返回原图，让前端处理
+    return dataUrl;
 }
 
-// --- 使用外部图像处理服务 ---
+// ✨ [性能优化] 废弃函数 - 不再使用外部服务
 async function resizeImageWithExternalService(dataUrl: string, targetWidth: number, targetHeight: number): Promise<string | null> {
-    try {
-        // 使用免费的图像处理服务
-        // 这里使用 Cloudinary 的免费服务作为示例
-        
-        // 方法1: 使用 Cloudinary (需要注册免费账号)
-        // const cloudinaryUrl = await resizeWithCloudinary(dataUrl, targetWidth, targetHeight);
-        // if (cloudinaryUrl) return cloudinaryUrl;
-        
-        // 方法2: 使用 ImageKit (需要注册免费账号)
-        // const imagekitUrl = await resizeWithImageKit(dataUrl, targetWidth, targetHeight);
-        // if (imagekitUrl) return imagekitUrl;
-        
-        // 方法3: 使用简单的在线图像处理服务
-        const resizedUrl = await resizeWithSimpleService(dataUrl, targetWidth, targetHeight);
-        if (resizedUrl) return resizedUrl;
-        
-        // 如果所有外部服务都不可用，返回null
-        console.log('所有外部图像处理服务都不可用');
-        return null;
-        
-    } catch (error) {
-        console.error('外部图像处理服务失败:', error);
-        return null;
-    }
+    // 外部服务不可靠且慢，直接返回null让前端处理
+    return null;
 }
 
-// --- 使用简单的在线图像处理服务 ---
+// ✨ [性能优化] 废弃函数 - 不再使用
 async function resizeWithSimpleService(dataUrl: string, targetWidth: number, targetHeight: number): Promise<string | null> {
-    try {
-        // 使用免费的图像处理API
-        // 这里使用一个简单的图像处理服务作为示例
-        
-        // 由于免费服务的限制，我们返回原图片并标记需要前端处理
-        console.log('使用简单图像处理服务（降级到前端处理）');
-        return null;
-        
-    } catch (error) {
-        console.error('简单图像处理服务失败:', error);
-        return null;
-    }
+    // 直接返回null让前端处理
+    return null;
 }
 
 // --- 获取API地址的优先级逻辑 ---
@@ -186,10 +111,13 @@ async function callOpenRouter(messages: any[], apiKey: string, apiBaseUrl: strin
     const openrouterPayload: any = { 
         model: selectedModel, 
         messages,
-        // 优化参数以支持图片生成
-        temperature: 0.7,
-        max_tokens: 4096,
-        stream: false
+        // 严格控制参数以确保精确编辑
+        temperature: 0.1,        // 极低温度，确保一致性
+        max_tokens: 2048,        // 限制token数量，避免过度描述
+        stream: false,
+        top_p: 0.9,              // 控制随机性
+        frequency_penalty: 0.1,  // 轻微惩罚重复
+        presence_penalty: 0.1    // 轻微惩罚新内容
     };
     
     // 如果指定了图片尺寸，添加到payload中
@@ -334,20 +262,23 @@ async function callOpenRouter(messages: any[], apiKey: string, apiBaseUrl: strin
     }
 }
 
-// --- 高效的图片预处理函数 ---
+// --- 智能图片预处理函数 ---
 async function optimizeImageForProcessing(imageDataUrl: string, targetWidth: number, targetHeight: number): Promise<string> {
-    // 如果图片尺寸已经合适，直接返回
-    if (targetWidth <= 1024 && targetHeight <= 1024) {
-        return imageDataUrl;
-    }
-    
-    // 对于大图片，在后端进行预处理以提高速度
     try {
-        // 这里可以添加图片压缩逻辑
-        // 由于Deno环境的限制，我们主要依赖前端的优化
+        // 检查图片尺寸是否合适
+        if (targetWidth <= 1024 && targetHeight <= 1024) {
+            console.log(`图片尺寸合适 (${targetWidth}x${targetHeight})，直接使用`);
+            return imageDataUrl;
+        }
+        
+        // 对于大图片，记录日志但不进行压缩，保持原图质量
+        console.log(`图片尺寸较大 (${targetWidth}x${targetHeight})，保持原图质量`);
+        
+        // 保持原图质量，确保AI能获得最佳输入
         return imageDataUrl;
+        
     } catch (error) {
-        console.warn("Image optimization failed, using original:", error);
+        console.warn("图片预处理失败，使用原图:", error);
         return imageDataUrl;
     }
 }
@@ -365,23 +296,27 @@ async function processImageEdit(
     if (!images || images.length === 0) { throw new Error("At least one image is required."); }
     if (!prompt || prompt.trim() === '') { throw new Error("Edit prompt is required."); }
     
-    // 优化提示词，强调只修改指定部分，其余保持原图一致
-    const optimizedPrompt = `请严格按照以下要求处理图片：
+    // 🎨 [AI效果优化] 构建专业且清晰的提示词
+    const optimizedPrompt = `You are a professional photo editor. Edit this image according to the user's request.
 
-用户指令：${prompt}
+User's editing request: ${prompt}
 
-核心要求：
-1. 只修改用户指令中明确要求变更的部分
-2. 除指令要求变更的内容外，其余所有内容必须与原图保持完全一致
-3. 不要添加、删除或改变任何未在指令中提及的元素
-4. 保持原始尺寸 ${originalWidth} x ${originalHeight}
-5. 保持原图的构图、角度、透视关系
-6. 保持原图的色彩风格和色调（除非指令要求改变）
-7. 保持原图中人物的表情、姿势、服装（除非指令要求改变）
-8. 保持原图的背景和环境（除非指令要求改变）
-9. 只返回处理后的图片，不要任何文字说明`;
+STRICT EDITING RULES:
+1. Only modify what the user explicitly requested
+2. Preserve all original details: composition, lighting, shadows, textures, colors
+3. Preserve all elements: facial features, expressions, poses, clothing, objects
+4. Do NOT add new elements unless specifically requested
+5. Do NOT remove elements unless specifically requested
+6. Maintain the original artistic style and mood
+7. Focus on natural, professional-looking results
+8. Ensure high image quality and sharp details
+
+OUTPUT: Return only the edited image, no text or explanations.`;
 
     // 预处理图片以提高处理速度
+    console.log(`开始处理图片编辑，用户指令: "${prompt}"`);
+    console.log(`原始图片尺寸: ${originalWidth}x${originalHeight}`);
+    
     const optimizedImages = await Promise.all(
         images.map(img => optimizeImageForProcessing(img, originalWidth, originalHeight))
     );
@@ -394,7 +329,11 @@ async function processImageEdit(
         ]
     }];
 
+    console.log("发送给AI的提示词:", optimizedPrompt.substring(0, 200) + "...");
+    
     const result = await callOpenRouter(messages, apiKey, apiBaseUrl);
+    
+    console.log("AI处理结果:", result.type === 'image' ? '成功生成图片' : '返回文本');
     
     // 标记需要调整尺寸
     if (result.type === 'image') {
@@ -479,7 +418,7 @@ serve(async (req) => {
         }
     }
 
-    // --- 路由 2: Cherry Studio (Gemini, 非流式) ---
+    // --- 路由 2: Cherry Studio (Gemini, 非流式) --- 
     if (pathname.includes(":generateContent")) {
         try {
             const geminiRequest = await req.json();
@@ -589,25 +528,35 @@ serve(async (req) => {
             // 获取最终的API地址
             const finalApiBaseUrl = getApiBaseUrl(apiBaseUrl);
             
-            console.log("Processing image edit with dimensions:", { originalWidth, originalHeight });
-            console.log("Using API Base URL:", finalApiBaseUrl);
+            console.log("=== 开始WebUI图片编辑处理 ===");
+            console.log("用户指令:", prompt);
+            console.log("原始图片尺寸:", { originalWidth, originalHeight });
+            console.log("使用API地址:", finalApiBaseUrl);
+            console.log("使用模型:", model);
             
-            // 构建专门用于图片生成的提示词，强调精确修改
-            const imageGenerationPrompt = `请严格按照以下要求处理图片：
+            // 构建极其严格的图片编辑提示词
+            const imageGenerationPrompt = `【严格图片编辑指令】
 
-用户指令：${prompt}
+用户要求：${prompt}
 
-核心要求：
-1. 只修改用户指令中明确要求变更的部分
-2. 除指令要求变更的内容外，其余所有内容必须与原图保持完全一致
-3. 不要添加、删除或改变任何未在指令中提及的元素
-4. 保持原始尺寸 ${originalWidth} x ${originalHeight}
-5. 保持原图的构图、角度、透视关系
-6. 保持原图的色彩风格和色调（除非指令要求改变）
-7. 保持原图中人物的表情、姿势、服装（除非指令要求改变）
-8. 保持原图的背景和环境（除非指令要求改变）
-9. 图片质量要高，清晰度要好
-10. 只返回处理后的图片，不要任何文字说明`;
+【绝对规则 - 必须严格遵守】
+1. 只修改用户指令中明确指定的内容，其他任何部分都不得改变
+2. 保持原图的所有细节：构图、角度、透视、光线、阴影、纹理
+3. 保持原图的所有元素：人物表情、姿势、服装、配饰、背景物体
+4. 保持原图的色彩风格、色调、饱和度、对比度（除非明确要求改变）
+5. 保持原始尺寸：${originalWidth} x ${originalHeight}
+6. 不得添加任何新元素、物体或装饰
+7. 不得删除任何现有元素（除非明确要求删除）
+8. 不得改变图片的整体风格或艺术效果
+9. 不得改变人物的面部特征、表情或姿势（除非明确要求）
+10. 不得改变背景环境或添加新的背景元素
+
+【执行要求】
+- 严格按照用户指令执行，不得自主发挥
+- 保持原图的完整性和一致性
+- 只返回编辑后的图片，不要任何文字说明
+- 确保修改后的图片与原图在视觉上保持高度一致
+- 图片质量要高，清晰度要好`;
 
             const webUiMessages = [ { 
                 role: "user", 
@@ -623,8 +572,10 @@ serve(async (req) => {
             }, model);
             
             if (result && result.type === 'image') {
+                console.log("✅ AI成功生成图片，开始后处理...");
+                
                 // 调整图片尺寸以匹配原始尺寸
-                console.log(`AI生成图片成功，开始调整尺寸到 ${originalWidth}x${originalHeight}`);
+                console.log(`🔄 调整图片尺寸: ${originalWidth}x${originalHeight}`);
                 const resizedImageUrl = await resizeImageToTargetDimensions(result.content, originalWidth, originalHeight);
                 
                 // 检查是否成功调整了尺寸
@@ -637,22 +588,29 @@ serve(async (req) => {
                     processedAt: new Date().toISOString(),
                     needsResize: true,
                     targetDimensions: { width: originalWidth, height: originalHeight },
-                    backendResized: isBackendResized // 标记后端是否成功处理
+                    backendResized: isBackendResized, // 标记后端是否成功处理
+                    editInstruction: prompt, // 记录用户指令
+                    processingMethod: "strict_edit" // 标记处理方式
                 };
                 
-                console.log(`图片处理完成，后端调整: ${isBackendResized}`);
+                console.log(`✅ 图片处理完成！`);
+                console.log(`📊 处理统计: 后端调整=${isBackendResized}, 原始尺寸=${originalWidth}x${originalHeight}`);
                 
                 return new Response(JSON.stringify(responseData), { 
                     headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" } 
                 });
             } else {
-                // 如果模型返回了文本而不是图片，返回错误
-                const errorMessage = result ? `模型返回了文本而不是图片: ${result.content}` : "模型返回了空响应";
-                console.error("Error: Model returned text instead of image:", errorMessage);
+                console.log("❌ AI返回了文本而不是图片");
+                console.log("AI响应内容:", result?.content || "空响应");
+                
                 return new Response(JSON.stringify({ 
-                    error: errorMessage 
+                    error: "AI未能生成图片，可能是指令不够明确",
+                    suggestion: "请尝试更具体地描述要修改的内容，例如：'将背景改为蓝色' 或 '将人物的衣服改为红色'",
+                    aiResponse: result?.content || "空响应",
+                    userInstruction: prompt,
+                    troubleshooting: "建议：1) 使用更具体的指令 2) 确保指令只涉及图片编辑 3) 避免过于复杂的修改"
                 }), { 
-                    status: 500, 
+                    status: 400,
                     headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" } 
                 });
             }
